@@ -1,5 +1,6 @@
 [tools]
 checkov = "3.2.529"
+dotnet = "10.0.300"
 gitleaks = "8.30.1"
 pipx = "1.12.0"
 prek = "0.4.0"

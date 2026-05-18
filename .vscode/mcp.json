@@ -1,14 +1,15 @@
 {
   "servers": {
     "terraform": {
-      "command": "wsl",
+      "command": "docker",
       "args": [
-        "docker",
         "run",
         "-i",
         "--rm",
-        "hashicorp/terraform-mcp-server"
-      ]
+        "hashicorp/terraform-mcp-server:0.5.2"
+      ],
+      "type": "stdio"
     }
-  }
+  },
+  "inputs": []
 }
