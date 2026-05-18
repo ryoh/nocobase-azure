@@ -3,10 +3,9 @@
 # 使い方: bash scripts/bootstrap.sh
 set -euo pipefail
 
-RESOURCE_GROUP="rg-tfstate"
-STORAGE_ACCOUNT="stnocobasetfstate"
 CONTAINER_NAME="tfstate"
 LOCATION="japaneast"
+RESOURCE_GROUP="rg-tfstate"
 
 echo "=== Terraform State Bootstrap ==="
 
@@ -18,6 +17,11 @@ fi
 
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 echo "Subscription: ${SUBSCRIPTION_ID}"
+
+# サブスクリプション ID の先頭 8 文字でグローバル一意名を生成
+SUFFIX=$(echo "${SUBSCRIPTION_ID}" | tr -d '-' | cut -c1-8)
+STORAGE_ACCOUNT="stncbtf${SUFFIX}"
+echo "Storage Account 名: ${STORAGE_ACCOUNT}"
 
 # Resource Group
 echo "[1/3] Resource Group を作成中: ${RESOURCE_GROUP}"
@@ -51,4 +55,6 @@ echo ""
 echo "=== 完了 ==="
 echo "Storage Account : ${STORAGE_ACCOUNT}"
 echo "Container       : ${CONTAINER_NAME}"
-echo "次のステップ    : terraform init を実行してください"
+echo ""
+echo "次のステップ: 以下を providers.tf の backend ブロックに設定してください"
+echo "  storage_account_name = \"${STORAGE_ACCOUNT}\""

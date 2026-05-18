@@ -25,12 +25,22 @@ resource "azurerm_network_security_group" "aca" {
   }
 }
 
-# ACA Environment 用サブネット（/21 以上が必須）
+# ACA Environment 用サブネット（/21 以上必須、Microsoft.App/environments 委任必須）
 resource "azurerm_subnet" "aca" {
   name                 = "subnet-aca"
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = ["10.0.0.0/21"]
+
+  delegation {
+    name = "aca-delegation"
+    service_delegation {
+      name = "Microsoft.App/environments"
+      actions = [
+        "Microsoft.Network/virtualNetworks/subnets/join/action",
+      ]
+    }
+  }
 }
 
 resource "azurerm_subnet_network_security_group_association" "aca" {
