@@ -1,0 +1,14 @@
+{
+  "servers": {
+    "terraform": {
+      "command": "wsl",
+      "args": [
+        "docker",
+        "run",
+        "-i",
+        "--rm",
+        "hashicorp/terraform-mcp-server"
+      ]
+    }
+  }
+}
