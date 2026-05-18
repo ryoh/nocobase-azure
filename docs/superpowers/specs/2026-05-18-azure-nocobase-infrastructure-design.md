@@ -1,7 +1,8 @@
 # Azure NocoBase インフラ設計仕様
 
 - **日付**: 2026-05-18
-- **ステータス**: 承認済み
+- **更新**: 2026-05-19（実デプロイで判明した仕様を反映）
+- **ステータス**: 承認済み・デプロイ完了
 
 ---
 
@@ -33,11 +34,13 @@ Azure Subscription
     │
     ├── [module: networking]
     │   ├── Virtual Network: vnet-nocobase-prod (10.0.0.0/16)
-    │   │   ├── subnet-aca  10.0.1.0/23  ← Container Apps Environment 用（/23 必須）
-    │   │   └── subnet-db   10.0.3.0/24  ← PostgreSQL Flexible Server 用（委任必須）
-    │   └── Network Security Group
-    │       ├── allow: HTTPS 443 inbound（ACA managed ingress 経由）
-    │       └── deny:  DB サブネットへのインターネット直接アクセス
+    │   │   ├── subnet-aca  10.0.0.0/21  ← Container Apps Environment 用（/21 以上必須）
+    │   │   │                               ※ Microsoft.App/environments 委任も必須
+    │   │   └── subnet-db   10.0.8.0/24  ← PostgreSQL Flexible Server 用
+    │   │                                   ※ Microsoft.DBforPostgreSQL/flexibleServers 委任必須
+    │   └── Network Security Group × 2
+    │       ├── nsg-aca: allow HTTPS 443 inbound
+    │       └── nsg-db:  deny Internet inbound（DB をインターネットから完全遮断）
     │
     ├── [module: database]
     │   ├── Azure DB for PostgreSQL Flexible Server
@@ -65,8 +68,9 @@ Azure Subscription
     │
     └── [Terraform State ※ Terraform 管理外・別 RG に配置]
         └── Resource Group: rg-tfstate  ← 本番 RG を destroy しても state が消えないよう分離
-            └── Storage Account: stnocobasetfstate
-                └── Container: tfstate / blob: prod.terraform.tfstate
+            └── Storage Account: stncbtf<subscription_id_prefix8>  ← グローバル一意のため
+            │                                                         サブスクリプション ID 先頭8桁を付与
+            └── Container: tfstate / blob: prod.terraform.tfstate
 ```
 
 ### コスト概算

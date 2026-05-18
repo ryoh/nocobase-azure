@@ -1,6 +1,8 @@
 # Azure NocoBase インフラ 実装計画
 
 - **日付**: 2026-05-18
+- **更新**: 2026-05-19（実デプロイで判明した仕様を反映）
+- **ステータス**: 完了
 - **対応仕様書**: `2026-05-18-azure-nocobase-infrastructure-design.md`
 
 ---
@@ -8,8 +10,18 @@
 ## 前提条件
 
 - `mise install` 済み（terraform 1.15.3, tflint 0.62.1 等）
-- `az login` で Azure CLI 認証済み
+- `az login` で Azure CLI 認証済み（`mise exec -- az login`）
 - terraform-mcp が `.vscode/mcp.json` 経由で利用可能
+
+### ⚠️ Azure リソースプロバイダの事前登録（初回のみ）
+
+Container Apps を初めてデプロイするサブスクリプションでは `Microsoft.App` 名前空間の登録が必要:
+
+```bash
+mise exec -- az provider register --namespace Microsoft.App --wait
+mise exec -- az provider show --namespace Microsoft.App --query registrationState
+# "Registered" と表示されるまで待つ
+```
 
 ---
 
@@ -45,9 +57,12 @@
 ```bash
 # 作成するリソース
 # - Resource Group: rg-tfstate
-# - Storage Account: stnocobasetfstate (LRS, HTTPS のみ)
+# - Storage Account: stncbtf<subscription_id_先頭8文字> (LRS, HTTPS のみ)
 # - Blob Container: tfstate
 ```
+
+> ⚠️ **Storage Account 名はグローバル一意**: `stnocobasetfstate` 等の固定名は他のユーザーが使用済みの可能性がある。
+> スクリプトはサブスクリプション ID の先頭 8 文字（ハイフン除去）を自動付与し一意性を保証する（例: `stncbtfcb1d6159`）。
 
 ### 1-2. スクリプトを実行
 
@@ -55,7 +70,9 @@
 bash scripts/bootstrap.sh
 ```
 
-**完了条件:** `az storage account show --name stnocobasetfstate` が成功する
+スクリプト出力の `Storage Account 名` を `providers.tf` の `backend.storage_account_name` に設定する。
+
+**完了条件:** `mise exec -- az storage account show --name stncbtf<suffix>` が成功する
 
 ---
 
@@ -92,12 +109,18 @@ terraform validate
 ### 3-1. リソース実装（`modules/networking/main.tf`）
 
 ```
-azurerm_virtual_network        10.0.0.0/16
-azurerm_subnet (aca)           10.0.1.0/23  ※ /23 必須
-azurerm_subnet (db)            10.0.3.0/24  ※ Microsoft.DBforPostgreSQL/flexibleServers 委任
-azurerm_network_security_group ※ DB サブネットへのインターネット直接アクセスを拒否
-azurerm_subnet_network_security_group_association
+azurerm_virtual_network                          10.0.0.0/16
+azurerm_subnet (aca)                             10.0.0.0/21  ※ /21 以上必須・Microsoft.App/environments 委任必須
+azurerm_subnet (db)                              10.0.8.0/24  ※ Microsoft.DBforPostgreSQL/flexibleServers 委任必須
+azurerm_network_security_group (nsg-aca)         HTTPS 443 インバウンド許可
+azurerm_network_security_group (nsg-db)          インターネットインバウンド拒否
+azurerm_subnet_network_security_group_association × 2（ACA・DB 各サブネット）
 ```
+
+> ⚠️ **ACA サブネット要件（実デプロイで判明）:**
+> - サイズは `/21` 以上が必須（`/23` では `ManagedEnvironmentSubnetDelegationError` が発生）
+> - `Microsoft.App/environments` への委任ブロック（delegation）が必須（ないとデプロイエラー）
+> - NSG は ACA サブネットにも必要（Checkov CKV2_AZURE_31 対応）
 
 ### 3-2. variables.tf / outputs.tf
 
@@ -216,21 +239,41 @@ terraform output app_fqdn
 
 **目的:** コミット前の自動チェックを設定する。
 
-### 7-1. `.prek.yml` を作成
+### 7-1. `.pre-commit-config.yaml` を作成
+
+> ⚠️ `prek` は `.prek.yml` ではなく `.pre-commit-config.yaml` 形式を使用する。
+> hooks 内のコマンドは `mise exec --` を先頭に付けないと mise 管理のツールが PATH 解決できない。
 
 ```yaml
-hooks:
-  pre-commit:
-    - terraform fmt -recursive
-    - terraform validate
-    - tflint --recursive
-    - gitleaks detect --source .
+repos:
+  - repo: local
+    hooks:
+      - id: terraform-fmt
+        name: terraform fmt
+        entry: mise exec -- terraform fmt -recursive
+        language: system
+        pass_filenames: false
+      - id: terraform-validate
+        name: terraform validate
+        entry: mise exec -- terraform validate
+        language: system
+        pass_filenames: false
+      - id: tflint
+        name: tflint
+        entry: mise exec -- tflint --recursive
+        language: system
+        pass_filenames: false
+      - id: gitleaks
+        name: gitleaks
+        entry: mise exec -- gitleaks detect --source .
+        language: system
+        pass_filenames: false
 ```
 
 ### 7-2. フックをインストール
 
 ```bash
-prek install
+mise exec -- prek install
 ```
 
 **完了条件:** `git commit` 時に上記チェックが自動実行される
@@ -257,12 +300,12 @@ terraform-docs markdown table --output-file README.md modules/app/
 
 ## 実装チェックリスト
 
-- [ ] フェーズ 0: terraform-mcp でプロバイダバージョン確認済み
-- [ ] フェーズ 1: bootstrap.sh 作成・実行、tfstate Storage Account 存在確認
-- [ ] フェーズ 2: ルートモジュール骨格、`terraform validate` 成功
-- [ ] フェーズ 3: networking モジュール、plan 正常
-- [ ] フェーズ 4: database モジュール、plan 正常
-- [ ] フェーズ 5: app モジュール、plan 正常
-- [ ] フェーズ 6: `terraform apply` 成功、NocoBase 画面表示確認
-- [ ] フェーズ 7: pre-commit フック設定済み
-- [ ] フェーズ 8: terraform-docs で README 生成済み
+- [x] フェーズ 0: terraform-mcp でプロバイダバージョン確認済み（azurerm 4.73.0）
+- [x] フェーズ 1: bootstrap.sh 作成・実行、tfstate Storage Account（stncbtfcb1d6159）存在確認
+- [x] フェーズ 2: ルートモジュール骨格、`terraform validate` 成功
+- [x] フェーズ 3: networking モジュール、plan 正常
+- [x] フェーズ 4: database モジュール、plan 正常
+- [x] フェーズ 5: app モジュール、plan 正常
+- [x] フェーズ 6: `terraform apply` 成功、NocoBase 画面表示確認（https://ca-nocobase-prod.agreeablesea-1392df45.japaneast.azurecontainerapps.io）
+- [x] フェーズ 7: pre-commit フック設定済み（.pre-commit-config.yaml）
+- [x] フェーズ 8: terraform-docs で README 生成済み
