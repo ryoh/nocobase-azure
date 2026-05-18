@@ -15,6 +15,12 @@ Azure Container Apps と Azure Database for PostgreSQL Flexible Server を使用
 - モジュール分割構成（将来の環境追加に対応）
 - Checkov / Trivy / Gitleaks のセキュリティスキャンをすべて通過する構成
 
+**実装時の必須ルール:**
+- Terraform コードを書く前に必ず **terraform-mcp** を使用し、プロバイダ・モジュールの最新バージョンおよびリソース仕様を確認すること
+  - `get_latest_provider_version` → `get_provider_capabilities` → `get_provider_details` の順で azurerm の最新情報を取得
+  - `get_latest_module_version` / `search_modules` で公式モジュールの有無を確認
+  - バージョン未指定・`latest` 指定は禁止（CLAUDE.md のルールに従う）
+
 ---
 
 ## 1. Azure アーキテクチャ
@@ -126,7 +132,9 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.0"  # 実装時に terraform-mcp で最新パッチバージョンを確認して固定
+      # 実装前に terraform-mcp の get_latest_provider_version で最新バージョンを確認し、
+      # ~> x.y.z 形式でパッチバージョンまで固定すること
+      version = "~> 4.0"
     }
   }
 
