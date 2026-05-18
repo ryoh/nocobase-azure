@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## プロジェクト概要
 NocoBaseをAzure上で運用するためのインフラストラクチャを構築・管理するTerraformプロジェクトです。
 Terraformのベストプラクティスに基づいたクリーン、安全、かつ拡張性の高いコード管理を目指します。
@@ -13,65 +15,65 @@ Terraformのベストプラクティスに基づいたクリーン、安全、�
 - **セキュリティ・スキャン:** trivy, checkov, pre-commit (prek), gitleaks
 
 ## 主要コマンド
-日常的な開発、検証、コード品質維持のために以下のコマンドを使用します。
 
-### 1. 開発・デプロイ
+### 開発・デプロイ
 ```bash
-# 初期化
 terraform init
-
-# 実行計画の確認
+terraform validate
 terraform plan
-
-# 変更の適用
 terraform apply
-
 ```
 
-### 2. 構文チェック・品質管理
-
+### フォーマット・Lint
 ```bash
-# 修正とフォーマット（必ず実行すること）
-terraform fmt
-
-# 静的解析 (Lint) の実行
-tflint
-
+# コード変更後は必ず実行すること
+terraform fmt -recursive
+tflint --recursive
 ```
 
-### 3. ドキュメント生成
-
+### セキュリティスキャン
 ```bash
-# README等の自動更新
+trivy config .
+checkov -d .
+gitleaks detect --source .
+```
+
+### ドキュメント生成
+```bash
 terraform-docs markdown table --output-file README.md .
-
 ```
 
-## コーディング規約・設計ルール
+## ファイル構成規約
 
-HashiCorp公式のスタイルガイド（ https://developer.hashicorp.com/terraform/language/style ）に厳格に従ってください。
+単一ファイルに詰め込まず、役割ごとに分割すること：
 
-### 1. 配置と命名規則
+| ファイル | 用途 |
+|---|---|
+| `main.tf` | リソース定義 |
+| `variables.tf` | 入力変数 |
+| `outputs.tf` | 出力値 |
+| `providers.tf` | プロバイダ・バージョン制約 |
+| `locals.tf` | ローカル値（必要な場合） |
+| `data.tf` | データソース（必要な場合） |
 
-* 引数や属性は、関連性ごとにグループ分けし、等号（`=`）の位置を揃える（`terraform fmt` で自動整形されますが意識すること）。
-* リソース名や変数名はスネークケース（`snake_case`）で統一する。
-* 単一ファイルに詰め込まず、`main.tf`, `variables.tf`, `outputs.tf`, `providers.tf` などに適切に分割する。
+モジュールは `modules/<name>/` 配下に配置する。
 
-### 2. 変数（Variables）と出力（Outputs）
+## コーディング規約
 
-* すべての `variable` には、必ず明確な `description` と `type` を定義すること。
-* 必要に応じて `validation` ブロックを活用し、不正な入力値を防ぐこと。
-* `output` にも必ず `description` を含めること。
+HashiCorp公式のスタイルガイド（ https://developer.hashicorp.com/terraform/language/style ）に厳格に従うこと。
+
+- リソース名・変数名はスネークケース（`snake_case`）で統一する
+- すべての `variable` に `description` と `type` を定義する
+- 必要に応じて `validation` ブロックで不正な入力値を防ぐ
+- すべての `output` に `description` を含める
 
 ## AIへの独自ルール（重要）
 
 1. **厳格なバージョン指定:**
-* Terraform本体、Azureプロバイダ（`azurerm`）、その他使用するすべての外部モジュールやツールにおいて、**`latest` やバージョン未指定は一切禁止**とします。必ず特定のバージョン、または安全なバージョン固定（例: `~> x.y.z`）を明記してください。
-
+   Terraform本体、`azurerm` プロバイダ、外部モジュールすべてにおいて `latest` やバージョン未指定は禁止。必ず特定バージョンまたは安全な範囲固定（例: `~> x.y.z`）を明記すること。
 
 2. **セキュリティファースト:**
-* TrivyやCheckov、Gitleaksによるスキャンを意識し、不必要なパブリックアクセスの許可や、平文でのシークレットの埋め込み（ハードコード）は絶対に避けてください。
-
+   不必要なパブリックアクセスの許可や、平文でのシークレットのハードコードは絶対に避けること。Trivy・Checkov・Gitleaksのチェックを常に意識すること。
 
 3. **環境依存の排除:**
-* WSL環境および `mise` を介したツール管理を前提とし、特定のローカル環境に依存する絶対パスの記述などは行わないでください。
+   WSL環境および `mise` を介したツール管理を前提とし、特定のローカル環境に依存する絶対パスは記述しないこと。
