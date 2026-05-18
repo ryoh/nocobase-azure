@@ -75,13 +75,8 @@ resource "azurerm_container_app" "nocobase" {
       }
 
       env {
-        name  = "DB_SSL"
-        value = "true"
-      }
-
-      env {
-        name  = "DB_DIALECT_OPTIONS"
-        value = jsonencode({ ssl = { require = true, rejectUnauthorized = false } })
+        name  = "TZ"
+        value = "Asia/Tokyo"
       }
     }
   }

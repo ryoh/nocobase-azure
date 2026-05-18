@@ -4,4 +4,4 @@ db_sku_name        = "B_Standard_B1ms"
 db_storage_mb      = 32768
 aca_min_replicas   = 0
 aca_max_replicas   = 2
-nocobase_image_tag = "1.6.0"
+nocobase_image_tag = "2.0.55-full"
