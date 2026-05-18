@@ -1,0 +1,26 @@
+repos:
+  - repo: local
+    hooks:
+      - id: terraform-fmt
+        name: terraform fmt
+        entry: mise exec -- terraform fmt -recursive
+        language: system
+        pass_filenames: false
+
+      - id: terraform-validate
+        name: terraform validate
+        entry: mise exec -- terraform validate
+        language: system
+        pass_filenames: false
+
+      - id: tflint
+        name: tflint
+        entry: mise exec -- tflint --recursive
+        language: system
+        pass_filenames: false
+
+      - id: gitleaks
+        name: gitleaks
+        entry: mise exec -- gitleaks detect --source .
+        language: system
+        pass_filenames: false
