@@ -73,6 +73,16 @@ resource "azurerm_container_app" "nocobase" {
         name        = "DB_PASSWORD"
         secret_name = "db-password"
       }
+
+      env {
+        name  = "DB_SSL"
+        value = "true"
+      }
+
+      env {
+        name  = "DB_DIALECT_OPTIONS"
+        value = jsonencode({ ssl = { require = true, rejectUnauthorized = false } })
+      }
     }
   }
 
